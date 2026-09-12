@@ -2,6 +2,132 @@
 
 一个面向抖音、小红书、微博、X、Instagram 的图片检索与下载 MCP 服务。它把平台适配、用户意图解析、结果排序、质量过滤、去重和下载拆开，避免“只会把网页上的图全部下载下来”。
 
+## 新手安装与使用（Windows）
+
+下面按顺序复制命令即可完成安装。第一次使用只需要安装 Python 和 Git；不会写代码也可以使用。
+
+### 第 1 步：安装 Python
+
+从 [python.org](https://www.python.org/downloads/) 安装 Python 3.10 或更高版本。安装界面第一页一定勾选 **Add Python to PATH**。安装完成后打开 PowerShell，输入：
+
+```powershell
+python --version
+```
+
+能看到 `Python 3.10`、`Python 3.11` 或更高版本就可以继续。如果提示找不到 `python`，重新安装并勾选上面的选项。
+
+### 第 2 步：下载项目
+
+安装 Git 后，在 PowerShell 中逐行执行：
+
+```powershell
+git clone https://github.com/wozhendemeiyou/social-image-mcp-crawler.git
+cd social-image-mcp-crawler
+```
+
+### 第 3 步：安装项目依赖
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
+Copy-Item .env.example .env
+social-image-mcp --check
+```
+
+如果 PowerShell 阻止虚拟环境脚本，只需先执行一次：
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+然后重新执行 `.\.venv\Scripts\Activate.ps1`。每次重新打开 PowerShell 使用项目时，都先运行这一句激活环境：
+
+```powershell
+cd social-image-mcp-crawler
+.\.venv\Scripts\Activate.ps1
+```
+
+### 第 4 步：配置抖音登录（抓取抖音必须）
+
+抖音的搜索和博主主页需要登录态。项目使用开源的 [dy-cli](https://github.com/Youhai020616/douyin) 负责抖音登录和数据读取。先在项目根目录执行下面三行，把 dy-cli 放到项目约定的位置：
+
+```powershell
+git clone https://github.com/Youhai020616/douyin.git third_party\dy-cli
+python -m pip install -e .\third_party\dy-cli
+playwright install chromium
+```
+
+如果提示 `third_party\dy-cli` 已存在，说明已经安装过，直接继续下一步即可。然后运行登录脚本：
+
+```powershell
+.\scripts\douyin_login.ps1
+```
+
+浏览器弹出后，用手机抖音扫码登录。看到 `login completed` 后关闭窗口即可。登录信息只保存在本机的 `.cache` 目录，不会上传 GitHub。
+
+如果你只想先测试 MCP 工具发现，可以跳过登录；真正抓取抖音图片或视频时再登录即可。小红书、微博、X、Instagram 也需要各自的平台登录或 API 配置，未配置的平台会显示 `unavailable`，不会影响其他平台。
+
+### 第 5 步：连接 MCP 客户端
+
+以 Codex CLI 为例，在项目根目录执行：
+
+```powershell
+codex mcp add social-image --env PYTHONUTF8=1 --env PYTHONIOENCODING=utf-8 -- python .\scripts\run_mcp.py
+codex mcp list
+```
+
+如果客户端不是从项目目录启动，请使用绝对路径。先在项目目录执行 `Get-Location` 查看路径，再把下面的 `<项目绝对路径>` 替换掉：
+
+```powershell
+codex mcp add social-image --env PYTHONUTF8=1 --env PYTHONIOENCODING=utf-8 -- python "<项目绝对路径>\scripts\run_mcp.py"
+```
+
+添加完成后重新打开一个 Codex 任务。在对话中直接说“搜索抖音上的咖啡店图片并下载”，客户端就会调用这个 MCP。不要在 PowerShell 窗口里手动输入 JSON；MCP 服务只接受客户端发送的标准协议消息。
+
+如果你使用 Claude Desktop、Cursor 等支持 JSON 配置的客户端，把下面配置加入它们的 MCP 配置文件，并将两个 `<项目绝对路径>` 替换成实际路径。Windows 路径中的反斜杠要写成两个反斜杠：
+
+```json
+{
+  "mcpServers": {
+    "social-image": {
+      "command": "<项目绝对路径>\\.venv\\Scripts\\python.exe",
+      "args": ["<项目绝对路径>\\scripts\\run_mcp.py"],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
+```
+
+例如项目放在 `D:\\social-image-mcp-crawler` 时，`command` 就是 `D:\\social-image-mcp-crawler\\.venv\\Scripts\\python.exe`，`args` 就是 `D:\\social-image-mcp-crawler\\scripts\\run_mcp.py`。保存配置后重启客户端。
+
+### 第 6 步：第一次调用示例
+
+在 MCP 客户端中，可以直接这样说：
+
+```text
+用 social-image 抓取抖音号 Gracebb0722 最近 20 个作品的图片，下载到本地。
+```
+
+也可以明确要求视频：
+
+```text
+用 social-image 抓取抖音昵称“放学小野猪”的公开视频，最多 10 个，下载原视频。
+```
+
+程序默认把文件保存到项目下的 `downloads` 文件夹，并用 `.cache` 保存断点和缓存。再次执行相同任务会自动续传。
+
+### 常见问题
+
+- **提示 `No recommended source configured`**：还没有配置来源项目，按“来源项目接入”完成安装，并检查 `.env` 中的命令路径。
+- **抖音号或昵称搜不到**：确认抖音号没有多余空格；改用 `creator_name` 填昵称；仍然找不到时，复制博主完整主页链接，改用 `profile_url`。主页链接通常最稳定。
+- **提示登录、验证码或 403**：重新运行 `scripts\\douyin_login.ps1` 登录，并确认当前网络可以打开抖音。程序不会绕过验证码或平台限制。
+- **下载目录在哪里**：默认是项目目录下的 `downloads`；可以在调用时传入 `output_dir` 指定其他目录。
+
 ## 能力
 
 - `search_images`：默认走“推荐采集项目召回 + 本地语义重排”，支持抖音、小红书、微博、B 站、X 和 Instagram 的关键词、平台内容 ID、帖子/笔记/视频 URL；多平台并发检索后统一排序，可通过 `download=true` 直接下载。配置本地 CLIP 后会追加视觉重排；`retrieval_mode=hybrid` 才会额外叠加公共索引或旧平台适配器。
