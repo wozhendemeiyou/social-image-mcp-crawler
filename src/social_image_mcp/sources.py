@@ -262,6 +262,17 @@ def _number(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _media_type(metadata: dict[str, Any], image_url: str) -> str:
+    """Infer whether a gallery-dl record is an image or downloadable video."""
+    values = [
+        metadata.get("media_type"), metadata.get("mimetype"), metadata.get("mime_type"),
+        metadata.get("content_type"), metadata.get("extension"), metadata.get("ext"),
+        metadata.get("filename"), image_url,
+    ]
+    text = " ".join(str(value or "").lower() for value in values)
+    return "video" if any(marker in text for marker in ("video/", ".mp4", ".webm", ".mkv", " mp4", " webm")) else "image"
+
+
 def _candidate(platform: Platform, record: Any, image_url: str, index: int, source_name: str) -> ImageCandidate:
     metadata: dict[str, Any]
     if isinstance(record, list) and record and isinstance(record[0], int):
@@ -278,6 +289,7 @@ def _candidate(platform: Platform, record: Any, image_url: str, index: int, sour
         id=item_id,
         platform=platform,
         image_url=image_url,
+        media_type=_media_type(metadata, image_url),
         thumbnail_url=_first(metadata, "thumbnail_url", "thumbnailUrl", "thumb", "preview") if isinstance(_first(metadata, "thumbnail_url", "thumbnailUrl", "thumb", "preview"), str) else None,
         permalink=_first(metadata, "permalink", "post_url", "postUrl", "web_url", "webUrl", "page_url", "pageUrl", "url") if isinstance(_first(metadata, "permalink", "post_url", "postUrl", "web_url", "webUrl", "page_url", "pageUrl", "url"), str) else None,
         title=title,
@@ -657,8 +669,8 @@ class GalleryDlSource:
             }[platform]]
         if platform == Platform.X:
             query = intent.raw
-            if "filter:images" not in query.lower():
-                query += " filter:images"
+            if "filter:media" not in query.lower() and "filter:images" not in query.lower():
+                query += " filter:media"
             return [f"https://x.com/search?q={quote(query)}&src=typed_query"]
         if platform == Platform.INSTAGRAM:
             return [f"https://www.instagram.com/explore/tags/{quote(tag)}/" for tag in self._instagram_tags(intent)]

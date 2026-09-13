@@ -183,6 +183,10 @@ class SocialImageService:
                     await collect("browser", adapter.search(intent, request.max_results, request.safe_mode))
             if request.retrieval_mode == "platform" or (request.retrieval_mode == "hybrid" and platform not in (Platform.BILIBILI, Platform.WEIBO)):
                 await collect("platform", adapter.search(intent, request.max_results, request.safe_mode))
+            elif request.retrieval_mode == "sources" and platform in (Platform.X, Platform.INSTAGRAM) and adapter.status.configured and not candidates:
+                # Official X/Instagram APIs are a usable download source when
+                # the user supplied a token, even if gallery-dl is not set up.
+                await collect("platform", adapter.search(intent, request.max_results, request.safe_mode))
 
             # In hybrid mode, preserve useful candidates and expose partial
             # failures as warnings. An error is fatal only when every channel

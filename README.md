@@ -128,6 +128,36 @@ codex mcp add social-image --env PYTHONUTF8=1 --env PYTHONIOENCODING=utf-8 -- py
 - **提示登录、验证码或 403**：重新运行 `scripts\\douyin_login.ps1` 登录，并确认当前网络可以打开抖音。程序不会绕过验证码或平台限制。
 - **下载目录在哪里**：默认是项目目录下的 `downloads`；可以在调用时传入 `output_dir` 指定其他目录。
 
+### X 平台为什么以前下载不了，如何修复
+
+X 的公开搜索接口通常只给图片缩略图；视频还必须从 `media.variants` 里取 MP4 地址。现在项目已自动请求图片原图（`pbs.twimg.com` 的 `name=orig`），并选择 X 返回的最高码率 MP4；下载请求也带浏览器 User-Agent 和 Referer。
+
+要使用 X 下载，请完成下面配置：
+
+1. 在 [X Developer Portal](https://developer.x.com/en/portal/dashboard) 创建项目和应用，生成 **Bearer Token**。
+2. 打开项目根目录的 `.env`，填写：
+
+   ```dotenv
+   X_BEARER_TOKEN=粘贴你的BearerToken
+   ```
+
+3. 如果 API 返回 `401`、`403` 或 `429`，用项目脚本让 gallery-dl 读取浏览器登录态：
+
+   ```powershell
+   python -m pip install gallery-dl
+   powershell -ExecutionPolicy Bypass -File .\scripts\setup_account.ps1 -Platform x -Browser edge
+   ```
+
+   在弹出的 Edge 窗口登录 X，脚本会把会话保存到本机 `.cache`。这个文件已被 `.gitignore` 忽略。
+
+4. 修改 `.env` 后，关闭旧的 MCP 任务并重新打开一个任务，再调用：
+
+   ```text
+   搜索 X 上的 coffee shop 图片和视频，下载到本地。
+   ```
+
+只有 `url` 或 `media_url` 指向 `pbs.twimg.com`、`video.twimg.com` 的真实媒体时才会下载；X 返回的网页链接、转发页面和受保护账号不会被当成媒体文件。Bearer Token 只能访问 API 允许的公开内容，不能绕过私密账号、付费内容或平台限流。
+
 ## 能力
 
 - `search_images`：默认走“推荐采集项目召回 + 本地语义重排”，支持抖音、小红书、微博、B 站、X 和 Instagram 的关键词、平台内容 ID、帖子/笔记/视频 URL；多平台并发检索后统一排序，可通过 `download=true` 直接下载。配置本地 CLIP 后会追加视觉重排；`retrieval_mode=hybrid` 才会额外叠加公共索引或旧平台适配器。

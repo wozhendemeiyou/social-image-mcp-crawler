@@ -86,7 +86,12 @@ class ImageDownloader:
             last_error = ""
             for attempt in range(3):
                 try:
-                    response = await self.client.get(item.image_url, follow_redirects=True, timeout=30)
+                    headers = {"User-Agent": "Mozilla/5.0 (social-image-mcp)"}
+                    if item.platform.value == "x":
+                        # X media hosts occasionally reject clients without a
+                        # browser-like referer, even though the URL is public.
+                        headers["Referer"] = "https://x.com/"
+                    response = await self.client.get(item.image_url, headers=headers, follow_redirects=True, timeout=30)
                     response.raise_for_status()
                     break
                 except httpx.HTTPError as exc:

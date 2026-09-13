@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -357,7 +357,32 @@ class XAdapter(PlatformAdapter):
 
     @property
     def status(self) -> AdapterStatus:
-        return AdapterStatus(self.platform, bool(self.token), "official-api" if self.token else "not-configured", "X_BEARER_TOKEN is required")
+        detail = "X_BEARER_TOKEN is required; video downloads use media.variants from API v2"
+        return AdapterStatus(self.platform, bool(self.token), "official-api" if self.token else "not-configured", detail)
+
+    @staticmethod
+    def _original_image_url(url: str) -> str:
+        """Ask pbs.twimg.com for the original image instead of a thumbnail."""
+        if "pbs.twimg.com" not in url:
+            return url
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query["name"] = "orig"
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+    @staticmethod
+    def _best_video_variant(media: dict[str, Any]) -> str | None:
+        variants = media.get("variants") or []
+        usable = [
+            variant for variant in variants
+            if isinstance(variant, dict)
+            and str(variant.get("content_type", "")).lower() in {"video/mp4", "video/webm"}
+            and str(variant.get("url", "")).startswith(("http://", "https://"))
+        ]
+        if not usable:
+            return None
+        # Prefer the highest bitrate; GIFs generally expose only one variant.
+        return str(max(usable, key=lambda variant: float(variant.get("bit_rate") or 0)).get("url"))
 
     async def search(self, intent: Intent, limit: int, safe_mode: bool) -> list[ImageCandidate]:
         if not self.token:
@@ -366,14 +391,17 @@ class XAdapter(PlatformAdapter):
         identifier = intent.identifier if intent.identifier and intent.identifier_platform in (None, "x") else None
         if identifier:
             url = f"https://api.x.com/2/tweets/{identifier}"
-            params = {"expansions": "attachments.media_keys,author_id", "post.fields": "created_at,text,author_id,possibly_sensitive", "media.fields": "url,preview_image_url,width,height,type,alt_text"}
+            params = {"expansions": "attachments.media_keys,author_id", "post.fields": "created_at,text,author_id,possibly_sensitive", "media.fields": "url,preview_image_url,variants,width,height,type,alt_text"}
             response = await self.client.get(url, params=params, headers=headers)
         else:
             query = intent.raw.replace("-", " ")
             if safe_mode:
                 query += " -is:retweet"
-            query += " has:images"
-            params = {"query": query, "max_results": min(max(limit, 10), 100), "expansions": "attachments.media_keys,author_id", "post.fields": "created_at,text,author_id,possibly_sensitive", "media.fields": "url,preview_image_url,width,height,type,alt_text"}
+            # `has:images` can exclude video-only posts.  `has:media` lets the
+            # API return photos, GIFs and videos; each item is typed below and
+            # the downloader chooses the corresponding file validation path.
+            query += " has:media"
+            params = {"query": query, "max_results": min(max(limit, 10), 100), "expansions": "attachments.media_keys,author_id", "post.fields": "created_at,text,author_id,possibly_sensitive", "media.fields": "url,preview_image_url,variants,width,height,type,alt_text"}
             response = await self.client.get("https://api.x.com/2/tweets/search/recent", params=params, headers=headers)
         try:
             response.raise_for_status()
@@ -390,10 +418,17 @@ class XAdapter(PlatformAdapter):
                 continue
             for index, media_key in enumerate(tweet.get("attachments", {}).get("media_keys", [])):
                 media = media_by_key.get(media_key, {})
-                image_url = media.get("url") or media.get("preview_image_url")
-                if not image_url or media.get("type") not in ("photo", "animated_gif", "video"):
+                media_type = "image"
+                if media.get("type") == "photo":
+                    image_url = self._original_image_url(str(media.get("url") or media.get("preview_image_url") or ""))
+                elif media.get("type") in ("animated_gif", "video"):
+                    image_url = self._best_video_variant(media)
+                    media_type = "video"
+                else:
+                    image_url = None
+                if not image_url:
                     continue
-                result.append(ImageCandidate(id=str(tweet.get("id")), platform=self.platform, image_url=image_url, permalink=f"https://x.com/i/status/{tweet.get('id')}", title=tweet.get("text", ""), description=tweet.get("text", ""), width=media.get("width"), height=media.get("height"), alt_text=media.get("alt_text", ""), published_at=tweet.get("created_at"), source_payload={"tweet": tweet, "media": media, "media_index": index}))
+                result.append(ImageCandidate(id=str(tweet.get("id")), platform=self.platform, image_url=image_url, media_type=media_type, thumbnail_url=media.get("preview_image_url"), permalink=f"https://x.com/i/status/{tweet.get('id')}", title=tweet.get("text", ""), description=tweet.get("text", ""), width=media.get("width"), height=media.get("height"), alt_text=media.get("alt_text", ""), published_at=tweet.get("created_at"), source_payload={"tweet": tweet, "media": media, "media_index": index}))
         return result
 
 

@@ -21,6 +21,14 @@ def test_gallery_dl_json_line_is_normalized_to_candidate():
     assert items[0].width == 1800
 
 
+def test_gallery_dl_video_record_keeps_video_media_type():
+    output = '[3, "https://video.twimg.com/test.mp4?tag=12", {"tweet_id":"42","extension":"mp4","width":1280,"height":720}]\n'
+    items = normalize_source_output(Platform.X, output, "gallery-dl", 5)
+    assert len(items) == 1
+    assert items[0].media_type == "video"
+    assert items[0].image_url.startswith("https://video.twimg.com/")
+
+
 def test_source_process_output_decodes_utf8_and_windows_gb18030():
     assert _decode_process_output("微博账号不存在".encode("utf-8")) == "微博账号不存在"
     assert _decode_process_output("微博账号不存在".encode("gb18030")) == "微博账号不存在"
@@ -102,7 +110,7 @@ def test_gallery_source_uses_bounded_native_search_targets():
     x_command = source._command(Platform.X, parse_intent("咖啡店室内"), 7)
     assert x_command[x_command.index("--range") + 1] == "1-7"
     assert "output.jsonl=true" in x_command
-    assert "filter%3Aimages" in x_command[-1]
+    assert "filter%3Amedia" in x_command[-1]
     assert x_command[-1].startswith("https://x.com/search?")
 
     instagram_targets = source._targets(Platform.INSTAGRAM, parse_intent("咖啡店室内，横图，不要水印"))
