@@ -65,10 +65,12 @@ class CreatorFetchRequest(BaseModel):
         # explicit for non-Chinese nicknames.
         if self.platform == Platform.DOUYIN and self.creator_id and not self.creator_name and any("\u4e00" <= char <= "\u9fff" for char in self.creator_id):
             self.creator_name, self.creator_id = self.creator_id, None
-        if self.platform not in (Platform.DOUYIN, Platform.WEIBO, Platform.BILIBILI):
-            raise ValueError("creator media download currently supports douyin, weibo and bilibili")
-        if self.creator_name and self.platform not in (Platform.DOUYIN, Platform.BILIBILI):
-            raise ValueError("creator_name lookup is currently supported only for douyin and bilibili")
+        if self.platform == Platform.X and self.creator_id:
+            self.creator_id = self.creator_id.strip().lstrip("@")
+        if self.platform not in (Platform.DOUYIN, Platform.WEIBO, Platform.BILIBILI, Platform.X):
+            raise ValueError("creator media download currently supports douyin, weibo, bilibili and x")
+        if self.creator_name and self.platform not in (Platform.DOUYIN, Platform.BILIBILI, Platform.X):
+            raise ValueError("creator_name lookup is currently supported only for douyin, bilibili and x")
         targets = [bool(self.creator_id), bool(self.creator_name), bool(self.profile_url)]
         if sum(targets) != 1:
             raise ValueError("provide exactly one of creator_id, creator_name or profile_url")

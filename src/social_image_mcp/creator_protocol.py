@@ -14,7 +14,7 @@ from .models import CreatorIdentity, Platform
 def creator_target(platform: str, value: str) -> str:
     """Parse explicit account inputs without guessing from nicknames or post URLs."""
     value = value.strip()
-    prefix = re.match(r"^(douyin|weibo|bilibili|bili|b站)-user[:：]", value, re.I)
+    prefix = re.match(r"^(douyin|weibo|bilibili|bili|b站|x|twitter)-user[:：]", value, re.I)
     if prefix:
         prefix_platform = {"bili": "bilibili", "b站": "bilibili"}.get(prefix.group(1).lower(), prefix.group(1).lower())
         if prefix_platform != platform:
@@ -24,20 +24,23 @@ def creator_target(platform: str, value: str) -> str:
         url = urlparse(value)
         allowed = {"douyin": {"douyin.com", "www.douyin.com"},
                    "weibo": {"weibo.com", "www.weibo.com", "m.weibo.cn"},
-                   "bilibili": {"space.bilibili.com", "www.bilibili.com", "bilibili.com"}}
+                   "bilibili": {"space.bilibili.com", "www.bilibili.com", "bilibili.com"},
+                   "x": {"x.com", "www.x.com", "twitter.com", "www.twitter.com"}}
         if url.hostname not in allowed.get(platform, set()) or url.username or url.port:
             raise ValueError("use the full creator profile URL on the selected platform")
         if platform == "douyin":
             pattern = r"/user/([A-Za-z0-9_.-]+)/?"
         elif platform == "bilibili":
             pattern = r"/(?:u/)?(\d+)/?"
+        elif platform == "x":
+            pattern = r"/([A-Za-z0-9_.-]+)/?"
         else:
             pattern = r"/(?:u/|profile/)?(\d+)/?"
         match = re.fullmatch(pattern, unquote(url.path))
         if not match:
             raise ValueError("this is not a supported creator profile URL; provide the account ID or full profile URL")
         value = match.group(1)
-    pattern = r"[A-Za-z0-9_.-]+" if platform == "douyin" else r"\d+"
+    pattern = r"[A-Za-z0-9_.-]+" if platform in ("douyin", "x") else r"\d+"
     if not re.fullmatch(pattern, value) or len(value) > 200:
         raise ValueError("invalid creator ID; Douyin accepts a handle/UID/sec_uid, Weibo and Bilibili require a numeric UID")
     return value

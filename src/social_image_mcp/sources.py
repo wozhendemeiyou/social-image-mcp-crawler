@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from .intent import Intent, expand_token
 from .models import CreatorFetchRequest, CreatorIdentity, ImageCandidate, Platform
@@ -739,6 +739,51 @@ class GalleryDlSource:
         self._succeeded(platform)
         return candidates
 
+    async def fetch_creator(self, request: CreatorFetchRequest) -> CreatorSourceResult:
+        """Fetch an X user's media timeline through gallery-dl.
+
+        X API v2 does not expose a username timeline without a separate user
+        lookup and pagination flow. gallery-dl already handles that flow and
+        returns authenticated media URLs, so adapt its records into the same
+        creator envelope used by the other platforms.
+        """
+        if request.platform != Platform.X:
+            raise SourceUnavailable(f"gallery-dl creator retrieval does not support {request.platform.value}")
+        target = request.creator_name or request.creator_id or request.profile_url or ""
+        target = target.strip().lstrip("@")
+        if request.profile_url:
+            path = urlparse(request.profile_url).path.strip("/")
+            target = path.split("/", 1)[0] if path else target
+        if not target:
+            raise SourceError("X creator username is required")
+        profile_url = f"https://x.com/{target}"
+        intent = Intent(raw=profile_url, normalized=profile_url.lower(), tokens=(target.lower(),), negative_tokens=(), url=profile_url, identifier_platform="x")
+        candidates = await self.search(Platform.X, intent, max(request.max_images, request.max_posts * 10))
+        items: list[ImageCandidate] = []
+        post_ids: list[str] = []
+        seen_posts: set[str] = set()
+        for item in candidates:
+            if request.media_type == "images" and item.media_type != "image":
+                continue
+            if request.media_type == "videos" and item.media_type != "video":
+                continue
+            record = item.source_payload.get("record") if isinstance(item.source_payload, dict) else {}
+            post_id = str((record or {}).get("tweet_id") or (record or {}).get("id") or item.id)
+            if post_id not in seen_posts:
+                seen_posts.add(post_id)
+                post_ids.append(post_id)
+            items.append(item.model_copy(update={
+                "id": f"{post_id}:{item.media_index or 1}",
+                "post_id": post_id,
+                "creator_id": target,
+                "creator_name": target,
+                "permalink": item.permalink or f"https://x.com/{target}/status/{post_id}",
+            }))
+            if len(items) >= request.max_images:
+                break
+        identity = CreatorIdentity(platform=Platform.X, requested_id=target, canonical_id=target, name=target, profile_url=profile_url, source="gallery-dl", matched_by="username")
+        return CreatorSourceResult(identity=identity, items=items, posts_fetched=len(post_ids), post_ids=tuple(post_ids), pages_fetched=1, next_cursor=None)
+
 
 class SourceHub:
     def __init__(self, media_crawler_command: str | None, xhs_downloader_command: str | None, gallery_dl_binary: str, gallery_dl_config: str | None = None, timeout_seconds: int = 120, douyin_source_command: str | None = None, douyin_timeout_seconds: int = 45, gallery_dl_cookies_from_browser: str | None = None, failure_cooldown_seconds: int = 120, verification_path: str | None = None, verification_ttl_seconds: int = 86400, gallery_dl_cookies_file: str | None = None, douyin_media_crawler_fallback: bool = False) -> None:
@@ -776,6 +821,8 @@ class SourceHub:
             return await self.media_crawler.fetch_creator(request)
         if request.platform == Platform.BILIBILI:
             raise SourceUnavailable("Bilibili creator retrieval uses the native public API")
+        if request.platform == Platform.X:
+            return await self.gallery_dl.fetch_creator(request)
         raise SourceUnavailable("creator retrieval currently supports only douyin and weibo")
 
     async def search(self, platform: Platform, intent: Intent, limit: int) -> list[ImageCandidate]:

@@ -158,6 +158,14 @@ X 的公开搜索接口通常只给图片缩略图；视频还必须从 `media.v
 
 只有 `url` 或 `media_url` 指向 `pbs.twimg.com`、`video.twimg.com` 的真实媒体时才会下载；X 返回的网页链接、转发页面和受保护账号不会被当成媒体文件。Bearer Token 只能访问 API 允许的公开内容，不能绕过私密账号、付费内容或平台限流。
 
+按 X 博主抓取时可以直接使用 `@用户名`、`x-user:用户名`，或调用 `fetch_creator_images` 时填写 `platform: "x"` 和 `creator_id`。例如：
+
+```text
+抓取 X 博主 @jwj180 最近 20 条含媒体的帖子并下载图片。
+```
+
+该账号路径由 gallery-dl 读取 X 登录态；如果只配置 Bearer Token 而没有 gallery-dl Cookie，搜索 API 可以工作，但博主时间线下载可能因 X 权限限制返回空结果。
+
 调用 X 视频时，在 MCP 工具参数中设置 `media_type: "videos"`；要同时获取图片和视频则设置 `media_type: "all"`。普通图片搜索默认 `media_type: "images"`。
 
 ## 能力

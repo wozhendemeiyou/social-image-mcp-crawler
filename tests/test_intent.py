@@ -42,6 +42,13 @@ def test_creator_prefix_is_distinguished_from_post_id():
     assert intent.is_keyword is False
 
 
+def test_at_handle_is_treated_as_x_creator():
+    intent = parse_intent("@jwj180")
+    assert intent.identifier == "jwj180"
+    assert intent.identifier_platform == "x"
+    assert intent.identifier_scope == "creator"
+
+
 def test_creator_name_prefix_routes_to_creator_lookup():
     intent = parse_intent("douyin-name:放学小野猪")
     assert intent.identifier == "放学小野猪"

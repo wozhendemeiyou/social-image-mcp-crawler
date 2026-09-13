@@ -91,6 +91,10 @@ def parse_intent(query: str) -> Intent:
         suffix = (match.group(2) or "").lower()
         identifier_scope = "creator_name" if suffix in {"-name", "-nickname"} else ("creator" if suffix else "post")
         identifier = match.group(3)
+    elif re.fullmatch(r"@[A-Za-z0-9_.-]+", raw):
+        identifier = raw[1:]
+        identifier_platform = "x"
+        identifier_scope = "creator"
     elif re.fullmatch(r"\d{6,}|[A-Za-z0-9_-]{10,}", raw):
         identifier = raw
         identifier_scope = "post"
