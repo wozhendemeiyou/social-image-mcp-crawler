@@ -41,7 +41,7 @@ def _configure_stdio() -> None:
             pass
 
 
-@mcp.tool(description="Search social platforms by a keyword, content ID, or post URL. Creator queries such as douyin-user:<handle> or douyin-name:<nickname> route to exact account retrieval; media_type=videos can return original video files for creator queries.")
+@mcp.tool(description="Search social platforms by a keyword, content ID, or post URL. Set media_type=images (default), videos, or all to choose downloadable media. Creator queries such as douyin-user:<handle> or douyin-name:<nickname> route to exact account retrieval; media_type=videos can return original video files for creator queries.")
 async def search_images(query: str, platforms: list[str] | None = None, max_results: int = 20, min_width: int = 0, min_height: int = 0, safe_mode: bool = True, use_cache: bool = True, download: bool = False, output_dir: str | None = None, retrieval_mode: str = "sources", content_query: str | None = None, filter_mode: str = "off", quality_mode: str = "fast", media_type: str = "images") -> dict[str, Any]:
     intent = parse_intent(query)
     if intent.identifier_scope in {"creator", "creator_name"}:
@@ -56,7 +56,7 @@ async def search_images(query: str, platforms: list[str] | None = None, max_resu
             quality_mode=quality_mode, media_type=media_type, download=download, output_dir=output_dir,
         ))
     selected = [Platform(value) for value in platforms] if platforms else None
-    request = SearchRequest(query=query, platforms=selected, max_results=max_results, min_width=min_width, min_height=min_height, safe_mode=safe_mode, use_cache=use_cache, retrieval_mode=retrieval_mode)
+    request = SearchRequest(query=query, platforms=selected, max_results=max_results, min_width=min_width, min_height=min_height, safe_mode=safe_mode, use_cache=use_cache, retrieval_mode=retrieval_mode, media_type=media_type)
     result = await service.search(request)
     if download and result["items"]:
         download_request = DownloadRequest(items=result["items"], output_dir=output_dir, min_width=min_width, min_height=min_height)

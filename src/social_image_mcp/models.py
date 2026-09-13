@@ -25,6 +25,7 @@ class SearchRequest(BaseModel):
     safe_mode: bool = True
     use_cache: bool = True
     retrieval_mode: str = Field(default="sources", pattern="^(sources|discovery|hybrid|platform)$")
+    media_type: str = Field(default="images", pattern="^(images|videos|all)$")
 
 
 class CreatorSort(str, Enum):

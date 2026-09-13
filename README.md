@@ -158,6 +158,8 @@ X 的公开搜索接口通常只给图片缩略图；视频还必须从 `media.v
 
 只有 `url` 或 `media_url` 指向 `pbs.twimg.com`、`video.twimg.com` 的真实媒体时才会下载；X 返回的网页链接、转发页面和受保护账号不会被当成媒体文件。Bearer Token 只能访问 API 允许的公开内容，不能绕过私密账号、付费内容或平台限流。
 
+调用 X 视频时，在 MCP 工具参数中设置 `media_type: "videos"`；要同时获取图片和视频则设置 `media_type: "all"`。普通图片搜索默认 `media_type: "images"`。
+
 ## 能力
 
 - `search_images`：默认走“推荐采集项目召回 + 本地语义重排”，支持抖音、小红书、微博、B 站、X 和 Instagram 的关键词、平台内容 ID、帖子/笔记/视频 URL；多平台并发检索后统一排序，可通过 `download=true` 直接下载。配置本地 CLIP 后会追加视觉重排；`retrieval_mode=hybrid` 才会额外叠加公共索引或旧平台适配器。

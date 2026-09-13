@@ -217,6 +217,10 @@ class SocialImageService:
         platform_status: dict[str, dict] = {}
         effective_status = {item["platform"]: item for item in self.statuses()}
         for platform, candidates, error in results:
+            if request.media_type == "videos":
+                candidates = [item for item in candidates if item.media_type == "video"]
+            elif request.media_type == "images":
+                candidates = [item for item in candidates if item.media_type == "image"]
             all_candidates.extend(candidates)
             status = effective_status[platform.value]
             platform_status[platform.value] = {"count": len(candidates), "error": error, "status": status}
