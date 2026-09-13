@@ -206,7 +206,10 @@ if (-not $galleryDl) {
 
 $loginUrl = if ($Platform -eq "x") { "https://x.com/login" } else { "https://www.instagram.com/accounts/login/" }
 $testUrl = if ($Platform -eq "x") {
-    "https://x.com/search?q=coffee%20shop&src=typed_query"
+    # X search pages can return an empty gallery-dl result even with valid
+    # cookies. Use a public media timeline to verify the session and media
+    # extractor without depending on a particular search query.
+    "https://x.com/NASA/media"
 } else {
     "https://www.instagram.com/explore/tags/coffeeshop/"
 }

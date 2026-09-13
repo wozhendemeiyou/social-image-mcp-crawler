@@ -148,7 +148,7 @@ X 的公开搜索接口通常只给图片缩略图；视频还必须从 `media.v
    powershell -ExecutionPolicy Bypass -File .\scripts\setup_account.ps1 -Platform x -Browser edge
    ```
 
-   在弹出的 Edge 窗口登录 X，脚本会把会话保存到本机 `.cache`。这个文件已被 `.gitignore` 忽略。
+   在弹出的 Edge 窗口登录 X，脚本会用公开的 NASA 媒体页验证会话，然后把会话保存到本机 `.cache`。这个文件已被 `.gitignore` 忽略。验证页只用于确认登录和媒体读取，不代表你要下载 NASA 的内容。
 
 4. 修改 `.env` 后，关闭旧的 MCP 任务并重新打开一个任务，再调用：
 
