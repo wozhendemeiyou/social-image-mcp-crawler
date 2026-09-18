@@ -1,4 +1,4 @@
-param([int]$Port = 8765)
+﻿param([int]$Port = 8765)
 $ErrorActionPreference = "Stop"
 $ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 Set-Location $ProjectRoot
