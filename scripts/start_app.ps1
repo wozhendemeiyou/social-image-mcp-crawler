@@ -3,8 +3,10 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 Set-Location $ProjectRoot
 $python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-if (-not (Test-Path $python)) { $python = (Get-Command python -ErrorAction SilentlyContinue).Source }
-if (-not $python) { throw "Python 3.10 or newer was not found." }
+if (-not (Test-Path -LiteralPath $python)) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "scripts\install_desktop.ps1")
+}
+if (-not (Test-Path -LiteralPath $python)) { throw "桌面版运行环境创建失败。请先双击 安装桌面版.bat 查看错误。" }
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 # Override project-relative source commands from .env so a copied desktop

@@ -1,0 +1,43 @@
+param(
+    [switch]$InstallSources
+)
+
+$ErrorActionPreference = "Stop"
+$ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+Set-Location $ProjectRoot
+
+function Find-Python {
+    $py = Get-Command py -ErrorAction SilentlyContinue
+    if ($py) {
+        try {
+            $candidate = (& $py.Source -3.10 -c "import sys; print(sys.executable)" 2>$null).Trim()
+            if ($LASTEXITCODE -eq 0 -and $candidate) { return $candidate }
+        } catch {}
+    }
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if ($python) { return $python.Source }
+    throw "未找到 Python 3.10 或更高版本。请先从 https://www.python.org/downloads/ 安装 Python，并勾选 Add Python to PATH。"
+}
+
+$python = Find-Python
+$venvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $venvPython)) {
+    Write-Host "正在创建桌面版运行环境..." -ForegroundColor Cyan
+    & $python -m venv (Join-Path $ProjectRoot ".venv")
+}
+
+Write-Host "正在安装桌面版运行依赖..." -ForegroundColor Cyan
+& $venvPython -m pip install --upgrade pip
+& $venvPython -m pip install -e $ProjectRoot
+
+$envFile = Join-Path $ProjectRoot ".env"
+if (-not (Test-Path -LiteralPath $envFile)) {
+    Copy-Item -LiteralPath (Join-Path $ProjectRoot ".env.example") -Destination $envFile
+    Write-Host "已创建 .env 配置文件。" -ForegroundColor DarkGray
+}
+
+if ($InstallSources) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "scripts\install_sources.ps1") -UseGit
+}
+
+Write-Host "桌面版安装完成。双击 启动应用.bat 即可启动。" -ForegroundColor Green
