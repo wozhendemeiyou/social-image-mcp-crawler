@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$InstallSources
 )
 
@@ -28,7 +28,9 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
 
 Write-Host "正在安装桌面版运行依赖..." -ForegroundColor Cyan
 & $venvPython -m pip install --upgrade pip
+if ($LASTEXITCODE -ne 0) { throw "pip 更新失败，请检查网络连接后重新运行 安装桌面版.bat。" }
 & $venvPython -m pip install -e $ProjectRoot
+if ($LASTEXITCODE -ne 0) { throw "桌面版依赖安装失败，请查看上面的 pip 错误后重试。" }
 
 $envFile = Join-Path $ProjectRoot ".env"
 if (-not (Test-Path -LiteralPath $envFile)) {

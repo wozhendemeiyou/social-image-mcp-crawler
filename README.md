@@ -13,13 +13,26 @@
 
 3. 双击项目根目录的 **安装桌面版.bat**。它会自动创建 `.venv`、安装桌面版依赖并生成本地 `.env`，不需要执行 MCP 注册命令。
 
-只使用“其他平台”网页图片提取，到这里即可开始使用。抖音、微博、小红书等平台需要登录态或来源项目；首次需要时，在项目目录执行：
+只使用“其他平台”网页图片提取，到这里即可开始使用。抖音、微博、小红书等平台需要额外的登录态和来源项目，按下面对应平台配置即可。
+
+### 抖音
+
+```powershell
+git clone https://github.com/Youhai020616/douyin.git third_party\dy-cli
+.\.venv\Scripts\python.exe -m pip install -e .\third_party\dy-cli
+.\.venv\Scripts\python.exe -m playwright install chromium
+.\scripts\douyin_login.ps1 -Python .\.venv\Scripts\python.exe
+```
+
+### 微博和小红书
+
+在项目目录执行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit
 ```
 
-然后按平台登录提示操作。登录信息只保存在本机 `.cache`，不会提交到 Git。
+首次搜索时，程序会打开来源项目的浏览器窗口，请按提示完成官方登录。登录信息只保存在本机 `.cache`，不会提交到 Git。X 和 Instagram 需要在 `.env` 中配置对应的官方 API 或 gallery-dl 会话。
 
 ## 启动
 

@@ -18,7 +18,7 @@
    powershell -ExecutionPolicy Bypass -File .\scripts\install_desktop.ps1
    ```
 
-4. 只使用“其他平台”时可以直接启动。需要抖音、微博或小红书时，再运行 `powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit` 并按平台登录。
+4. 只使用“其他平台”时可以直接启动。需要抖音时，先安装 `third_party\dy-cli` 并运行 `scripts\douyin_login.ps1`；需要微博或小红书时，运行 `powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit`，首次搜索时按浏览器提示登录。
 
 ## 启动
 
