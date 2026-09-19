@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import socket
 import sys
 import threading
 import webbrowser
@@ -20,6 +21,17 @@ from social_image_mcp.intent import parse_intent
 from social_image_mcp.server import search_images, service
 
 HTML = (ROOT / "scripts" / "app.html").read_text(encoding="utf-8")
+
+
+class LocalHTTPServer(ThreadingHTTPServer):
+    # Windows permits multiple HTTPServer instances on one port when
+    # SO_REUSEADDR is enabled, allowing requests to reach an older process.
+    allow_reuse_address = False
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def _preview_referer(image_url: str, referer: str = "") -> str:
@@ -180,8 +192,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     parser = argparse.ArgumentParser(); parser.add_argument("--host", default="127.0.0.1"); parser.add_argument("--port", type=int, default=8765); parser.add_argument("--no-browser", action="store_true"); args = parser.parse_args()
+    server = LocalHTTPServer((args.host, args.port), Handler)
     runner = _Loop(); Handler.runner = runner
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
     url = f"http://{args.host}:{args.port}/"; print(f"社交媒体采集器已启动：{url}", flush=True)
     if not args.no_browser: threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try: server.serve_forever()

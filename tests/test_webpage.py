@@ -84,6 +84,54 @@ def test_original_and_best_responsive_image_are_selected_once():
     assert urls == ["https://example.org/" + name for name in ("original.jpg", "large.webp", "full.jpg", "camera.jpg")]
 
 
+def test_icon_and_product_badge_links_do_not_trigger_detail_crawls():
+    html = '''<main><div class="content">
+    <a href="/help"><img src="/support.svg"><h2>Support</h2></a>
+    <a href="/products/other"><img src="/product-badge.png"></a>
+    <a href="/company"><img src="/brand-lockup.jpg"></a>
+    <a href="/post/artwork"><img src="/placeholder.svg" data-src="/artwork.jpg"></a>
+    </div></main>'''
+    result = extract_page(html, "https://example.org/")
+    assert result.links == ["https://example.org/post/artwork"]
+    assert [item.image_url for item in result.items] == ["https://example.org/artwork.jpg"]
+
+
+def test_linked_original_keeps_the_image_caption():
+    result = extract_page(
+        '<main><a href="/full.jpg"><img data-src="/thumb.jpg" alt="Forest garden"></a></main>',
+        "https://example.org/",
+    )
+    assert len(result.items) == 1
+    assert result.items[0].image_url == "https://example.org/full.jpg"
+    assert result.items[0].alt_text == "Forest garden"
+
+
+def test_originals_take_priority_over_earlier_gallery_thumbnails():
+    thumbnails = ''.join(f'<img src="/thumb-{index}.jpg">' for index in range(6))
+    html = f'''<main>{thumbnails}
+    <a href="/full.jpg"><img src="/preview.jpg"></a>
+    <img src="/preview2.jpg" data-original="/camera.jpg">
+    <video src="/clip.mp4"></video></main>'''
+
+    def handler(request):
+        return html_response(html) if request.url.path == "/" else media_response(request)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await WebPageAdapter(client).search_media(SearchRequest(
+                query="https://example.org/", media_type="all", image_limit=2,
+                video_limit=1, per_post_limit=2,
+            ))
+        assert [(item.media_type, item.image_url) for item in result.items] == [
+            ("image", "https://example.org/full.jpg"),
+            ("image", "https://example.org/camera.jpg"),
+            ("video", "https://example.org/clip.mp4"),
+        ]
+        assert result.warnings == []
+
+    asyncio.run(run())
+
+
 def test_structured_video_does_not_treat_embed_page_or_poster_as_video():
     html = '''<main><video poster="/poster.jpg"><source src="/movie.mp4" type="video/mp4"><source src="/movie.webm"></video></main>
     <script type="application/ld+json">{"@graph":[

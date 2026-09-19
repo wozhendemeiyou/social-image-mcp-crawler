@@ -22,7 +22,7 @@ _STREAM_EXTENSIONS = (".m3u8", ".mpd")
 _UI = re.compile(
     r"(?:^|[\W_])(?:logo|icons?|favicon|avatar|sprite|emoji|placeholder|loading|loader|"
     r"spacer|pixel|tracking|qrcode|qr-code|telegram|wechat|close|lock|coin|share|"
-    r"fenxiang|age-gate)(?:$|[\W_])|图标|头像|二维码|网站标志", re.I,
+    r"fenxiang|age-gate|badges?|lockup)(?:$|[\W_])|图标|头像|二维码|网站标志", re.I,
 )
 _CHROME = re.compile(r"(?:^|[\W_])(?:navbar|navigation|sidebar|toolbar|social|advert|advertisement|ads|banner-ad|modal|popup|cookie-banner)(?:$|[\W_])", re.I)
 _CONTENT = re.compile(r"(?:^|[\W_])(?:post|article|entry|gallery|video|photo|card|portfolio|work|content)(?:$|[\W_])", re.I)
@@ -63,6 +63,30 @@ def _label(node: Tag) -> str:
     return " ".join(str(node.get(key) or "") for key in ("id", "class", "alt", "title", "aria-label", "role"))
 
 
+def _image_source(node: Tag, base: str) -> str | None:
+    """Choose the content source, excluding placeholder and UI-only images."""
+    choices = [node.get(key) for key in ("data-original", "data-full", "data-large")]
+    picture = node.find_parent("picture")
+    if picture:
+        for source in picture.find_all("source"):
+            choices += _srcset_urls(str(source.get("data-srcset") or source.get("srcset") or ""))
+    choices += _srcset_urls(str(node.get("data-srcset") or node.get("srcset") or ""))
+    choices += [node.get(key) for key in ("data-src", "data-lazy-src", "src")]
+    for value in choices:
+        absolute = _url(base, value)
+        if absolute and not _UI.search(_path(absolute)) and not _path(absolute).endswith((".svg", ".ico")):
+            return absolute
+    return None
+
+
+def _is_content_card(node: Tag, base: str) -> bool:
+    images = node.find_all("img")
+    if images:
+        # A link containing only an icon or product badge is navigation.
+        return any(not _is_chrome(image) and _image_source(image, base) for image in images)
+    return bool(node.find("video") or _CONTENT.search(_label(node.parent)) or node.find(["h2", "h3"]))
+
+
 def _is_chrome(node: Tag) -> bool:
     for parent in [node, *node.parents]:
         if not isinstance(parent, Tag):
@@ -100,7 +124,7 @@ def extract_page(html: str, page_url: str) -> PageMedia:
     seen: set[str] = set()
     scopes = soup.select("main, [role='main']") or soup.select("article") or [soup.body or soup]
 
-    def add(value, kind="image", alt="", poster=None, post_url=None) -> None:
+    def add(value, kind="image", alt="", poster=None, post_url=None, original=False) -> None:
         absolute = _url(base, value)
         if not absolute or absolute in seen or _UI.search(_path(absolute)) or _UI.search(alt):
             return
@@ -119,7 +143,7 @@ def extract_page(html: str, page_url: str) -> PageMedia:
             media_type=kind, permalink=page_url, thumbnail_url=_url(base, poster),
             title=alt or title or page_url, description=alt or title, alt_text=alt,
             post_id=hashlib.sha1(post.encode()).hexdigest()[:16],
-            source_payload={"source": "webpage", "page_url": page_url, "content_page": post},
+            source_payload={"source": "webpage", "page_url": page_url, "content_page": post, "original_image": original},
         ))
 
     def content_link(node: Tag) -> str | None:
@@ -144,17 +168,11 @@ def extract_page(html: str, page_url: str) -> PageMedia:
                 anchor = node.find_parent("a", href=True)
                 post = content_link(anchor) if anchor else None
                 linked = _url(base, anchor.get("href")) if anchor else None
-                choices = [linked] if linked and _path(linked).endswith(_IMAGE_EXTENSIONS) else []
-                choices += [node.get(key) for key in ("data-original", "data-full", "data-large")]
-                picture = node.find_parent("picture")
-                if picture:
-                    for source in picture.find_all("source"):
-                        choices += _srcset_urls(str(source.get("data-srcset") or source.get("srcset") or ""))
-                choices += _srcset_urls(str(node.get("data-srcset") or node.get("srcset") or ""))
-                choices += [node.get(key) for key in ("data-src", "data-lazy-src", "src")]
-                chosen = next((value for value in choices if _url(base, value) and not _UI.search(_path(_url(base, value)))), None)
+                original = bool(linked and _path(linked).endswith(_IMAGE_EXTENSIONS))
+                chosen = linked if original else _image_source(node, base)
                 if chosen:
-                    add(chosen, alt=alt, post_url=post)
+                    original |= any(chosen == _url(base, node.get(key)) for key in ("data-original", "data-full", "data-large"))
+                    add(chosen, alt=alt, post_url=post, original=original)
             elif node.name == "video":
                 sources = [node.get("data-src"), node.get("src")]
                 sources += [source.get("src") or source.get("data-src") for source in node.find_all("source")]
@@ -168,9 +186,10 @@ def extract_page(html: str, page_url: str) -> PageMedia:
                 if absolute and _path(absolute).endswith((*_VIDEO_EXTENSIONS, *_STREAM_EXTENSIONS)):
                     add(absolute, "video", node.get_text(" ", strip=True))
                 elif absolute and _path(absolute).endswith(_IMAGE_EXTENSIONS):
-                    add(absolute, alt=alt)
-                elif (node.find(["img", "video", "picture"]) or _CONTENT.search(_label(node.parent))
-                      or node.find(["h2", "h3"])):
+                    child = node.find("img")
+                    child_alt = str(child.get("alt") or child.get("title") or "") if child else ""
+                    add(absolute, alt=child_alt or alt, original=True)
+                elif _is_content_card(node, base):
                     if (link := content_link(node)) and link not in result.links:
                         result.links.append(link)
             elif _CONTENT.search(_label(node)):
@@ -377,7 +396,11 @@ class WebPageAdapter(PlatformAdapter):
         image_limit = request.image_limit or request.max_results
         video_limit = request.video_limit or request.max_results
         unique = list({item.image_url: item for item in reversed(pool)}.values())[::-1]
-        images = [item for item in unique if item.media_type == "image"][: min(400, image_limit * 3)] if request.media_type != "videos" else []
+        images = [item for item in unique if item.media_type == "image"] if request.media_type != "videos" else []
+        # Explicit links to originals must be considered before gallery
+        # thumbnails, otherwise a short quota can omit every full-size image.
+        images.sort(key=lambda item: not item.source_payload.get("original_image", False))
+        images = images[: min(400, image_limit * 3)]
         videos = [item for item in unique if item.media_type == "video"][: min(200, video_limit * 3)] if request.media_type != "images" else []
         verified: dict[str, ImageCandidate] = {}
         semaphore = asyncio.Semaphore(8)

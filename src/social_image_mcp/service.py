@@ -142,7 +142,7 @@ class SocialImageService:
         platforms = self._target_platforms(request, intent.identifier_platform)
         # Bump the namespace when relevance rules change so old low-quality
         # keyword results are never served from the persistent cache.
-        namespace = "search-v4-web-content" if platforms == [Platform.OTHER] else "search-v3-relevance-gated"
+        namespace = "search-v5-web-originals" if platforms == [Platform.OTHER] else "search-v3-relevance-gated"
         key = self.cache.key(namespace, request.model_dump(mode="json"), intent.normalized) if request.use_cache else None
         if key and (cached := self.cache.get(key)) is not None:
             return await self._refresh_cached_status(cached, platforms, request, key)
