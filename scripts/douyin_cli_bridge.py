@@ -296,7 +296,16 @@ async def _fetch_creator_via_browser(request: CreatorFetchRequest, account: str 
     headers. We only observe the public JSON responses emitted by the profile
     page and never attempt to bypass a challenge or login wall.
     """
-    from playwright.async_api import async_playwright
+    try:
+        from playwright.async_api import async_playwright
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"playwright", "playwright.async_api"}:
+            raise
+        raise RuntimeError(
+            "浏览器采集依赖 Playwright 未安装；桌面版请重新运行 安装桌面版.bat。"
+            "命令行环境请在当前 Python 环境安装 playwright，"
+            "再执行 python -m playwright install chromium。"
+        ) from exc
 
     requested = request.profile_url or request.creator_id or request.creator_name or ""
     target = requested

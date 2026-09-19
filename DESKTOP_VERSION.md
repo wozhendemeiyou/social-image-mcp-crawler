@@ -12,19 +12,21 @@
    cd social-image-mcp-crawler
    ```
 
-3. 双击 `安装桌面版.bat`。它会自动创建 `.venv`、安装依赖并生成 `.env`；也可以执行：
+3. 双击 `安装桌面版.bat`。它会自动创建 `.venv`、安装依赖和 Playwright，并生成 `.env`；如果已有 `third_party\dy-cli`，也会安装该来源的依赖。也可以执行：
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\scripts\install_desktop.ps1
    ```
 
-4. 只使用“其他平台”时可以直接启动。需要抖音时，先安装 `third_party\dy-cli` 并运行 `scripts\douyin_login.ps1`；需要微博或小红书时，运行 `powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit`，首次搜索时按浏览器提示登录。
+4. 只使用“其他平台”时可以直接启动。需要抖音时，先安装 `third_party\dy-cli`，尚未配置浏览器时执行 `.\.venv\Scripts\python.exe -m playwright install chromium`，然后运行 `scripts\douyin_login.ps1`；需要微博或小红书时，运行 `powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit`，首次搜索时按浏览器提示登录。
 
 ## 启动
 
 双击 `启动应用.bat`。第一次启动也会自动检查运行环境；浏览器打开 `http://127.0.0.1:8765/` 后即可使用。关闭启动它的 PowerShell 窗口即可停止应用。
 
 如果旧版启动时出现 `init_import_site` / `UnicodeDecodeError`，更新后直接双击启动即可。程序会在 Python 加载依赖前修复中文安装路径的编码，并备份原路径文件；不需要删除 `.venv`、`.env`、登录缓存或已下载的文件。安装脚本也会执行同样的修复。
+
+如果能启动但采集提示 `No module named 'playwright'`，更新后重新运行 `安装桌面版.bat`，补齐当前 `.venv` 的浏览器组件。安装到系统 Python 的组件不会自动用于桌面版虚拟环境。
 
 ## 使用
 

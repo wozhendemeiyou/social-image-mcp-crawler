@@ -11,7 +11,7 @@
    git clone -b desktop https://github.com/wozhendemeiyou/social-image-mcp-crawler.git
    ```
 
-3. 双击项目根目录的 **安装桌面版.bat**。它会自动创建 `.venv`、安装桌面版依赖并生成本地 `.env`，不需要执行 MCP 注册命令。
+3. 双击项目根目录的 **安装桌面版.bat**。它会自动创建 `.venv`、安装桌面版依赖和 Playwright，并生成本地 `.env`；若已有 `third_party\dy-cli`，也会安装该来源的依赖。不需要执行 MCP 注册命令。尚未配置浏览器时，按下面的抖音步骤安装 Chromium。
 
 只使用“其他平台”网页图片提取，到这里即可开始使用。抖音、微博、小红书等平台需要额外的登录态和来源项目，按下面对应平台配置即可。
 
@@ -49,6 +49,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit
 
 - **提示找不到 Python**：重新安装 Python，并确认勾选了 **Add Python to PATH**。
 - **启动提示 `init_import_site` 或 `UnicodeDecodeError`**：旧版在中文目录安装时可能写入了 GBK 路径，导致 UTF-8 启动失败。更新桌面版后双击 `启动应用.bat` 会自动修复，原路径文件会备份；无需删除 `.venv`、登录信息或下载文件。重新运行 `安装桌面版.bat` 也会先修复再安装。
+- **采集提示 `No module named 'playwright'`**：旧版虚拟环境缺少浏览器采集组件。更新后重新运行 `安装桌面版.bat`，再重试采集；仅复制 `third_party` 文件夹不会把依赖安装进 `.venv`。抖音接口返回 403 时也需要这些组件才能尝试已登录浏览器采集。
 - **页面打不开**：确认启动窗口仍在运行，或换一个端口执行 `powershell -ExecutionPolicy Bypass -File .\scripts\start_app.ps1 -Port 8766`。
 - **平台显示未配置**：先运行 `install_sources.ps1 -UseGit`，再按平台完成登录；“其他平台”不依赖这些来源项目。
 

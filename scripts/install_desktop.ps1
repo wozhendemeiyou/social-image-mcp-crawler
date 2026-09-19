@@ -41,8 +41,16 @@ if ($LASTEXITCODE -ne 0) { throw "桌面版运行环境修复失败，请查看�
 Write-Host "正在安装桌面版运行依赖..." -ForegroundColor Cyan
 & $venvPython -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) { throw "pip 更新失败，请检查网络连接后重新运行 安装桌面版.bat。" }
-& $venvPython -m pip install -e $ProjectRoot
+& $venvPython -m pip install -e "${ProjectRoot}[browser]"
 if ($LASTEXITCODE -ne 0) { throw "桌面版依赖安装失败，请查看上面的 pip 错误后重试。" }
+# A copied source folder alone does not install dy-cli's dependencies into
+# this virtual environment. Keep the local source and its patches intact.
+$dyCliRoot = Join-Path $ProjectRoot "third_party\dy-cli"
+if (Test-Path -LiteralPath (Join-Path $dyCliRoot "pyproject.toml")) {
+    Write-Host "正在安装抖音采集依赖..." -ForegroundColor Cyan
+    & $venvPython -m pip install -e $dyCliRoot
+    if ($LASTEXITCODE -ne 0) { throw "抖音采集依赖安装失败，请查看上面的 pip 错误后重试。" }
+}
 # Keep editable paths readable when users run Python without UTF-8 mode too.
 & $venvPython -S (Join-Path $ProjectRoot "scripts\repair_python_env.py") --venv (Join-Path $ProjectRoot ".venv")
 if ($LASTEXITCODE -ne 0) { throw "桌面版安装后的路径修复失败，请查看上面的错误。" }

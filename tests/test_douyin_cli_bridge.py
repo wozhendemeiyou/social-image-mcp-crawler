@@ -42,6 +42,25 @@ def test_dy_cli_verify_check_is_reported_as_an_error():
         _raise_for_empty_search({"search_nil_info": {"search_nil_type": "verify_check"}})
 
 
+def test_missing_browser_dependency_explains_how_to_repair(monkeypatch):
+    import asyncio
+    import builtins
+    import pytest
+    from social_image_mcp.models import CreatorFetchRequest
+
+    original_import = builtins.__import__
+
+    def import_without_playwright(name, *args, **kwargs):
+        if name == "playwright.async_api":
+            raise ModuleNotFoundError("No module named 'playwright'", name="playwright")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_playwright)
+    request = CreatorFetchRequest(platform="douyin", creator_id="sec-1", download=False)
+    with pytest.raises(RuntimeError, match="Playwright 未安装.*安装桌面版.bat"):
+        asyncio.run(_fetch_creator_via_browser(request))
+
+
 def test_dy_cli_id_fallback_requires_exact_aweme_id():
     records = [{"aweme_id": "123"}, {"aweme_id": "1234"}]
     assert _exact_record(records, "123") == records[0]
