@@ -48,6 +48,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_sources.ps1 -UseGit
 ## 常见问题
 
 - **提示找不到 Python**：重新安装 Python，并确认勾选了 **Add Python to PATH**。
+- **启动提示 `init_import_site` 或 `UnicodeDecodeError`**：旧版在中文目录安装时可能写入了 GBK 路径，导致 UTF-8 启动失败。更新桌面版后双击 `启动应用.bat` 会自动修复，原路径文件会备份；无需删除 `.venv`、登录信息或下载文件。重新运行 `安装桌面版.bat` 也会先修复再安装。
 - **页面打不开**：确认启动窗口仍在运行，或换一个端口执行 `powershell -ExecutionPolicy Bypass -File .\scripts\start_app.ps1 -Port 8766`。
 - **平台显示未配置**：先运行 `install_sources.ps1 -UseGit`，再按平台完成登录；“其他平台”不依赖这些来源项目。
 
