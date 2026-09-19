@@ -8,10 +8,12 @@ import json
 import socket
 import sys
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.request import ProxyHandler, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
@@ -21,6 +23,7 @@ from social_image_mcp.intent import parse_intent
 from social_image_mcp.server import search_images, service
 
 HTML = (ROOT / "scripts" / "app.html").read_text(encoding="utf-8")
+APP_ID = "social-image-mcp-desktop"
 
 
 class LocalHTTPServer(ThreadingHTTPServer):
@@ -32,6 +35,27 @@ class LocalHTTPServer(ThreadingHTTPServer):
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
+
+
+def _is_running_app(url: str) -> bool:
+    # Bypass system proxies for this local instance check. A matching folder
+    # prevents accidentally reopening a different checkout of the application.
+    opener = build_opener(ProxyHandler({}))
+    for attempt in range(3):
+        try:
+            with opener.open(url + "api/health", timeout=1) as response:
+                payload = json.loads(response.read(8192))
+            return (
+                isinstance(payload, dict)
+                and payload.get("app") == APP_ID
+                and payload.get("root") == str(ROOT)
+            )
+        except (OSError, ValueError):
+            # A simultaneous first launch may have bound its socket before
+            # it starts answering HTTP requests.
+            if attempt < 2:
+                time.sleep(0.2)
+    return False
 
 
 def _preview_referer(image_url: str, referer: str = "") -> str:
@@ -116,6 +140,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, HTML, "text/html; charset=utf-8")
         elif parsed.path == "/app.js":
             self._send(200, (ROOT / "scripts" / "app.js").read_text(encoding="utf-8"), "application/javascript; charset=utf-8")
+        elif parsed.path == "/api/health":
+            self._send(200, {"app": APP_ID, "root": str(ROOT)})
         elif parsed.path == "/api/status":
             self._send(200, {"platforms": service.statuses(), "sources": service.source_statuses()})
         elif parsed.path == "/api/image":
@@ -192,9 +218,22 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     parser = argparse.ArgumentParser(); parser.add_argument("--host", default="127.0.0.1"); parser.add_argument("--port", type=int, default=8765); parser.add_argument("--no-browser", action="store_true"); args = parser.parse_args()
-    server = LocalHTTPServer((args.host, args.port), Handler)
+    browser_host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
+    url = f"http://{browser_host}:{args.port}/"
+    try:
+        server = LocalHTTPServer((args.host, args.port), Handler)
+    except OSError as exc:
+        if _is_running_app(url):
+            print(f"应用已在运行：{url}", flush=True)
+            if not args.no_browser:
+                webbrowser.open(url)
+            return
+        raise SystemExit(
+            f"无法启动应用，端口 {args.port} 不可用。请关闭占用该端口的程序，"
+            f"或使用 scripts/start_app.ps1 -Port {args.port + 1} 指定其他端口。\n{exc}"
+        ) from None
     runner = _Loop(); Handler.runner = runner
-    url = f"http://{args.host}:{args.port}/"; print(f"社交媒体采集器已启动：{url}", flush=True)
+    print(f"社交媒体采集器已启动：{url}", flush=True)
     if not args.no_browser: threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try: server.serve_forever()
     except KeyboardInterrupt: pass
