@@ -5,6 +5,36 @@ from social_image_mcp.models import ImageCandidate, Platform, SearchRequest
 from social_image_mcp.service import SocialImageService
 
 
+def test_webpage_search_keeps_video_quota_and_forwards_detail_limit(tmp_path):
+    from social_image_mcp.webpage import PageMedia
+    from social_image_mcp.adapters.base import AdapterStatus
+
+    class WebAdapter:
+        status = AdapterStatus(Platform.OTHER, True, "webpage", "test")
+
+        async def search_media(self, request):
+            assert request.max_posts == 2
+            assert request.media_type == "all"
+            return PageMedia([
+                ImageCandidate(id="photo", platform=Platform.OTHER, image_url="https://cdn.test/a.jpg", post_id="post"),
+                ImageCandidate(id="video", platform=Platform.OTHER, image_url="https://cdn.test/v.mp4", media_type="video", post_id="post"),
+            ], warnings=["partial detail page"])
+
+    async def run():
+        service = SocialImageService(Settings(cache_path=str(tmp_path / "cache.sqlite3"), vision_model=None))
+        await service.start()
+        try:
+            service.adapters[Platform.OTHER] = WebAdapter()
+            result = await service.search(SearchRequest(query="https://example.org/", media_type="all", image_limit=1, video_limit=1, per_post_limit=1, max_posts=2, use_cache=False))
+            assert [item["media_type"] for item in result["items"]] == ["image", "video"]
+            assert result["platforms"]["other"]["count"] == 2
+            assert result["platforms"]["other"]["error"]["message"] == "partial detail page"
+        finally:
+            await service.close()
+
+    asyncio.run(run())
+
+
 def test_unconfigured_platform_returns_explicit_status(tmp_path):
     async def run():
         service = SocialImageService(Settings(cache_path=str(tmp_path / "cache.sqlite3"), vision_model=None))

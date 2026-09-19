@@ -79,8 +79,6 @@ class SocialImageService:
             request = request.model_copy(update={"platforms": [Platform.OTHER]})
             if not intent.url:
                 raise ValueError("其他平台需要输入完整的 http(s) 网页网址")
-            if request.media_type == "videos":
-                raise ValueError("其他平台目前支持提取网页图片，请选择图片")
         if intent.identifier_scope == "creator" and not webpage:
             return await self.fetch_creator(CreatorFetchRequest(
                 platform=Platform(intent.identifier_platform), creator_id=intent.identifier,
@@ -144,7 +142,8 @@ class SocialImageService:
         platforms = self._target_platforms(request, intent.identifier_platform)
         # Bump the namespace when relevance rules change so old low-quality
         # keyword results are never served from the persistent cache.
-        key = self.cache.key("search-v3-relevance-gated", request.model_dump(mode="json"), intent.normalized) if request.use_cache else None
+        namespace = "search-v4-web-content" if platforms == [Platform.OTHER] else "search-v3-relevance-gated"
+        key = self.cache.key(namespace, request.model_dump(mode="json"), intent.normalized) if request.use_cache else None
         if key and (cached := self.cache.get(key)) is not None:
             return await self._refresh_cached_status(cached, platforms, request, key)
 
@@ -175,11 +174,12 @@ class SocialImageService:
                     errors.append({"code": "unexpected_error", "message": f"{label}: {exc}"})
 
             if platform == Platform.OTHER:
-                await collect("webpage", adapter.search(intent, requested_total, request.safe_mode))
-                if not candidates and errors:
-                    first = errors[0]
-                    return platform, [], {"code": first["code"], "message": first["message"]}
-                return platform, candidates, None
+                try:
+                    page = await adapter.search_media(request)
+                except AdapterError as exc:
+                    return platform, [], {"code": "webpage_error", "message": str(exc)}
+                warning = {"code": "partial_error", "message": "; ".join(page.warnings)} if page.warnings else None
+                return platform, page.items, warning
 
             if request.retrieval_mode in ("discovery", "hybrid"):
                 await collect("discovery", self.discovery.search(platform, intent, requested_total * 2))
@@ -450,13 +450,15 @@ class SocialImageService:
             if request.media_type == "videos" and item.media_type != "video":
                 continue
             post = item.post_id or item.id
-            if per_post_limit is not None and posts.get(post, 0) >= per_post_limit:
+            limit_post = not (item.platform == Platform.OTHER and item.media_type == "video")
+            if limit_post and per_post_limit is not None and posts.get(post, 0) >= per_post_limit:
                 continue
             limit = image_limit if item.media_type == "image" else video_limit
             if counts[item.media_type] >= limit:
                 continue
             counts[item.media_type] += 1
-            posts[post] = posts.get(post, 0) + 1
+            if limit_post:
+                posts[post] = posts.get(post, 0) + 1
             selected.append(item)
             if request.media_type != "all" and len(selected) >= request.max_results:
                 break

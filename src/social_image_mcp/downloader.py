@@ -6,6 +6,7 @@ import io
 import json
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 from PIL import Image
@@ -54,7 +55,8 @@ class ImageDownloader:
                     path = Path(record.path)
                     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != record.sha256:
                         continue
-                    if (record.width or 0) < min_width or (record.height or 0) < min_height:
+                    content_minimum = 160 if record.platform.value == "other" and record.media_type == "image" else 0
+                    if (record.width or 0) < max(min_width, content_minimum) or (record.height or 0) < max(min_height, content_minimum):
                         continue
                     existing[(record.platform, record.creator_id, record.candidate_id, record.media_type)] = record
                     seen_hashes.add(record.sha256)
@@ -115,9 +117,11 @@ class ImageDownloader:
                 if content_type and not (content_type.startswith("video/") or content_type == "application/octet-stream"):
                     raise ValueError(f"not a video response: {content_type}")
                 digest = hashlib.sha256(content).hexdigest()
-                extension = "mp4"
-                if content_type in {"video/webm", "video/x-matroska"}:
-                    extension = "webm" if content_type == "video/webm" else "mkv"
+                suffix = Path(urlparse(item.image_url).path).suffix.lower().lstrip(".")
+                extension = {
+                    "video/mp4": "mp4", "video/webm": "webm", "video/x-matroska": "mkv",
+                    "video/quicktime": "mov", "video/ogg": "ogv", "video/x-m4v": "m4v",
+                }.get(content_type, suffix if suffix in {"mp4", "webm", "mkv", "mov", "ogv", "ogg", "m4v"} else "mp4")
                 async with lock:
                     if digest in seen_hashes:
                         return DownloadRecord(candidate_id=item.id, platform=item.platform, image_url=item.image_url, media_type="video", sha256=digest, status="duplicate")
@@ -135,7 +139,8 @@ class ImageDownloader:
                 image.verify()
             with Image.open(io.BytesIO(content)) as image:
                 width, height = image.size
-                if width < min_width or height < min_height:
+                content_minimum = 160 if item.platform.value == "other" else 0
+                if width < max(min_width, content_minimum) or height < max(min_height, content_minimum):
                     return DownloadRecord(candidate_id=item.id, platform=item.platform, image_url=item.image_url, sha256=digest, width=width, height=height, status="rejected", error="below minimum dimensions")
                 extension = (image.format or "jpg").lower().replace("jpeg", "jpg")
                 perceptual = _average_hash(image)

@@ -112,3 +112,20 @@ def test_downloader_accepts_video_media_and_keeps_media_type(tmp_path):
             assert record.path and record.path.endswith(".mp4")
 
     asyncio.run(run())
+
+
+def test_webpage_download_rejects_tiny_images_even_without_user_size_filter(tmp_path):
+    buffer = io.BytesIO()
+    Image.new("RGB", (96, 96), "red").save(buffer, format="PNG")
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, content=buffer.getvalue(), headers={"content-type": "image/png"})
+        )) as client:
+            item = ImageCandidate(id="hashed-icon", platform=Platform.OTHER, image_url="https://example.org/a")
+            record = (await ImageDownloader(client).download_many([item], tmp_path))[0]
+        assert record.status == "rejected"
+        assert record.path is None
+        assert not list(tmp_path.glob("*.png"))
+
+    asyncio.run(run())

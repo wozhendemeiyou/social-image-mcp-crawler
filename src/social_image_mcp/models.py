@@ -20,7 +20,7 @@ class Platform(str, Enum):
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=500)
     platforms: list[Platform] | None = None
-    max_results: int = Field(default=20, ge=1, le=200)
+    max_results: int = Field(default=20, ge=1, le=400)
     min_width: int = Field(default=0, ge=0, le=20000)
     min_height: int = Field(default=0, ge=0, le=20000)
     safe_mode: bool = True
@@ -30,6 +30,13 @@ class SearchRequest(BaseModel):
     image_limit: int | None = Field(default=None, ge=1, le=200)
     video_limit: int | None = Field(default=None, ge=1, le=200)
     per_post_limit: int | None = Field(default=None, ge=1, le=50)
+    max_posts: int = Field(default=20, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_media_total(self) -> "SearchRequest":
+        if self.media_type != "all" and self.max_results > 200:
+            raise ValueError("a single media type supports at most 200 results")
+        return self
 
 
 class CreatorSort(str, Enum):
